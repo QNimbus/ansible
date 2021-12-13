@@ -5,10 +5,9 @@
   gather_facts: yes
 
   vars:
-    home_dir: "{{ lookup('env', 'HOME') | default(ansible_user_dir, True) }}"
-    ssh_keyfile: "{{ lookup('env', 'SSH_KEYFILE') | default(home_dir + '/.ssh/id_rsa', True) }}"
-    user_username: "{{ lookup('env', 'USERNAME') | default('ansible', True) }}"
-    user_password: "{{ lookup('env', 'PASSWORD') | default('ansible', True) }}"
+  
+    # Disallow password authentication
+    sshd_password_authentification: 'no'
 
   tasks:
 
@@ -20,84 +19,9 @@
       failed_when:
       - result.rc != 0
 
-    - name: Password based logins are disabled - only public key based logins are allowed.
-      # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/lineinfile_module.html
-      lineinfile:
-        dest: /etc/ssh/sshd_config
-        regexp: "{{ item.regexp }}"
-        line: "{{ item.line }}"
-      loop:
-      - { regexp: '^#?\s*AuthenticationMethods', line: 'AuthenticationMethods publickey' }
-      - { regexp: '^#?\s*PasswordAuthentication', line: 'PasswordAuthentication no' }
-      - { regexp: '^#?\s*ChallengeResponseAuthentication', line: 'ChallengeResponseAuthentication no' }
-      - { regexp: '^#?\s*PubKeyAuthentication', line: 'PubKeyAuthentication yes' }
-
-      # Key exchange, ciphers and MACs
-      # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/lineinfile_module.html
-    - lineinfile:
-        dest: /etc/ssh/sshd_config
-        regexp: '^KexAlgorithms'
-        line: 'KexAlgorithms curve25519-sha256@libssh.org,diffie-hellman-group-exchange-sha256'
-
-      # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/lineinfile_module.html
-    - lineinfile:
-        dest: /etc/ssh/sshd_config
-        regexp: '^Ciphers'
-        line: 'Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr'
-    
-      # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/lineinfile_module.html
-    - lineinfile:
-        dest: /etc/ssh/sshd_config
-        regexp: '^MACs'
-        line: 'MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512,hmac-sha2-256,umac-128@openssh.com'
-
-    - name: Enable the most secure server auth algos and protocol version
-      # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/lineinfile_module.html
-      lineinfile:
-        dest: /etc/ssh/sshd_config
-        regexp: "{{ item.regexp }}"
-        line: "{{ item.line }}"
-      loop:
-      - { regexp: '^#?\s*Protocol 2', line: 'Protocol 2' }
-      - { regexp: '^#?\s*HostKey /etc/ssh/ssh_host_rsa_key', line: 'HostKey /etc/ssh/ssh_host_rsa_key' }
-      - { regexp: '^#?\s*HostKey /etc/ssh/ssh_host_ed25519_key', line: 'HostKey /etc/ssh/ssh_host_ed25519_key' }
-
-    - name: Disable other algorithms and remove key files
-      block:
-
-      - lineinfile:
-          dest: /etc/ssh/sshd_config
-          regexp: "{{ item.regexp }}"
-          state: absent
-        loop:
-        - { regexp: 'HostKey /etc/ssh/ssh_host_ecdsa_key' }
-        - { regexp: 'HostKey /etc/ssh/ssh_host_dsa_key' }
-      
-      - file:
-          dest: "{{ item.dest }}"
-          state: absent
-        loop:
-        - { dest: '/etc/ssh/ssh_host_ecdsa_key' }
-        - { dest: '/etc/ssh/ssh_host_ecdsa_key.pub' }
-        - { dest: '/etc/ssh/ssh_host_dsa_key' }
-        - { dest: '/etc/ssh/ssh_host_dsa_key.pub' }
-
-    - name: Disallow root login via SSH
-      # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/lineinfile_module.html
-      ansible.builtin.lineinfile:
-        path: /etc/ssh/sshd_config
-        regexp: "{{ item.regexp }}"
-        line: "{{ item.line }}"
-        state: present
-        validate: /usr/sbin/sshd -t -f %s
-      loop:
-        - { regexp: '^PermitRootLogin', line: 'PermitRootLogin no' }
-
-    - name: Restart SSHD
-      # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/service_module.html
-      ansible.builtin.service:
-        name: sshd
-        state: restarted
+    - name: Include the ssh_hardening role
+      include_role:
+        name: diodonfrost.ssh_hardening
 
     - name: Mount host filesystem read-only
       # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/raw_module.html

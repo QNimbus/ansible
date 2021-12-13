@@ -1,8 +1,8 @@
 ---
 - name: Initial setup
   hosts: pikvm
-  become: no
   user: root
+  become: no
   gather_facts: no
 
   # Playbook: setup.yaml
@@ -93,7 +93,6 @@
             dest: /etc/ssh/sshd_config
             regexp: '^[# ]*PubkeyAuthentication'
             line: "PubkeyAuthentication yes"
-            backup: yes
             state: present
           notify: "Restart SSHD"
 

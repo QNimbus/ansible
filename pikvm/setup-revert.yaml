@@ -1,8 +1,8 @@
 ---
 - name: Revert initial setup
   hosts: pikvm
-  become: no
   user: root
+  become: no
   gather_facts: no
 
   # Playbook: setup-revert.yaml
@@ -42,21 +42,6 @@
         failed_when:
         - result.rc != 0
 
-      - name: Remove user from sudoers file
-        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/lineinfile_module.html
-        ansible.builtin.lineinfile:
-          path: /etc/sudoers
-          regexp: '^[# ]*{{ user_username }}'
-          validate: /usr/sbin/visudo -cf %s
-          state: absent
-
-      - name: Remove provisioning user
-        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/user_module.html
-        ansible.builtin.user:
-          name: "{{ user_username }}"
-          remove: yes
-          state: absent
-
       - name: Configure SSHD
         block:
 
@@ -69,6 +54,21 @@
             backup: yes
             state: absent
           notify: "Restart SSHD"
+
+      - name: Remove provisioning user
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/user_module.html
+        ansible.builtin.user:
+          name: "{{ user_username }}"
+          remove: yes
+          state: absent
+
+      - name: Remove user from sudoers file
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/lineinfile_module.html
+        ansible.builtin.lineinfile:
+          path: /etc/sudoers
+          regexp: '^[# ]*{{ user_username }}'
+          validate: /usr/sbin/visudo -cf %s
+          state: absent
 
       - name: Mount host filesystem read-only
         # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/raw_module.html
