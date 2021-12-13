@@ -1,0 +1,113 @@
+---
+- name: Initial setup
+  hosts: pikvm
+  become: no
+  user: root
+  gather_facts: no
+
+  # Playbook: setup.yaml
+  #
+  # This playbook ensures the following:
+  # - Valid provisioning user with password-less sudo
+  # - Valid SSH key for provisioning user installed in 'authorized_keys'
+  #
+  # When run for the first time, use the following command line arguments to register unknown host keys:
+  #
+  # ansible-playbook setup.yaml --ask-pass --ssh-extra-args="-o StrictHostKeyChecking=no -o UpdateHostKeys=yes"
+  #
+  # For subsequent runs when the 'ansible' provisioning user has been created, the following command suffices:
+  #
+  # ansible-playbook setup.yaml --ask-pass
+
+  vars:
+    home_dir: "{{ lookup('env', 'HOME') | default(ansible_user_dir, True) }}"
+    ssh_keyfile: "{{ lookup('env', 'SSH_KEYFILE') | default(home_dir + '/.ssh/id_rsa_ansible', True) }}"
+    user_username: "{{ lookup('env', 'USERNAME') | default('ansible', True) }}"
+    user_password: "{{ lookup('env', 'PASSWORD') | default('ansible', True) }}"
+
+  tasks:
+
+    - name: Collect only selected facts
+      # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/setup_module.html
+      ansible.builtin.setup:
+        filter:
+          - 'ansible_distribution'
+
+    - name: Detected distro
+      # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/debug_module.html
+      ansible.builtin.debug:
+        msg: "{{ ansible_distribution }}"
+
+    - name: Only for Archlinux distros
+      when: ansible_distribution == 'Archlinux'
+      block:
+
+      - name: Generate SSH key
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/shell_module.html
+        shell: /bin/bash -c 'ssh-keygen -q -t rsa -b 4096 -C "{{ user_username }}" -N "" -f {{ ssh_keyfile }} <<< n'
+        delegate_to: localhost
+        become: no
+        failed_when: result.rc not in [0, 1]
+        changed_when: result.rc == 0
+        register: result
+
+      - name: Mount host filesystem read/write
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/raw_module.html
+        raw: rw
+        changed_when: False
+        register: result
+        failed_when:
+        - result.rc != 0
+
+      - name: Create provisioning user
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/user_module.html
+        ansible.builtin.user:
+          name: "{{ user_username }}"
+          password: "{{ user_password | password_hash('sha512') }}"
+          update_password: on_create
+          shell: /bin/bash
+          state: present
+
+      - name: Add user to sudoers file
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/lineinfile_module.html
+        ansible.builtin.lineinfile:
+          path: /etc/sudoers
+          regexp: '^[# ]*{{ user_username }}'
+          line: '{{ user_username }} ALL=(ALL) NOPASSWD: ALL'
+          validate: /usr/sbin/visudo -cf %s
+          state: present
+
+      - name: Install authorized key for provisioning user
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/posix/authorized_key_module.html
+        ansible.posix.authorized_key:
+          key: "{{ lookup('file', '{{ ssh_keyfile }}.pub') }}"
+          user: "{{ user_username }}"
+          state: present
+
+      - name: Configure SSHD
+        block:
+
+        - name: Ensure public key based logins are allowed.
+          # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/lineinfile_module.html
+          lineinfile:
+            dest: /etc/ssh/sshd_config
+            regexp: '^[# ]*PubkeyAuthentication'
+            line: "PubkeyAuthentication yes"
+            backup: yes
+            state: present
+          notify: "Restart SSHD"
+
+      - name: Mount host filesystem read-only
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/raw_module.html
+        raw: ro
+        changed_when: False
+        register: result
+        failed_when:
+        - result.rc != 0
+
+  handlers:
+    - name: Restart SSHD
+      # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/service_module.html
+      ansible.builtin.service:
+        name: sshd
+        state: restarted

@@ -1,0 +1,86 @@
+---
+- name: Revert initial setup
+  hosts: pikvm
+  become: no
+  user: root
+  gather_facts: no
+
+  # Playbook: setup-revert.yaml
+  #
+  # Has to be run as root:
+  #
+  # ansible-playbook setup-revert.yaml --ask-pass
+
+  vars:
+    home_dir: "{{ lookup('env', 'HOME') | default(ansible_user_dir, True) }}"
+    ssh_keyfile: "{{ lookup('env', 'SSH_KEYFILE') | default(home_dir + '/.ssh/id_rsa_ansible', True) }}"
+    user_username: "{{ lookup('env', 'USERNAME') | default('ansible', True) }}"
+    user_password: "{{ lookup('env', 'PASSWORD') | default('ansible', True) }}"
+
+  tasks:
+
+    - name: Collect only selected facts
+      # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/setup_module.html
+      ansible.builtin.setup:
+        filter:
+          - 'ansible_distribution'
+
+    - name: Detected distro
+      # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/debug_module.html
+      ansible.builtin.debug:
+        msg: "{{ ansible_distribution }}"
+
+    - name: Only for Archlinux distros
+      when: ansible_distribution == 'Archlinux'
+      block:
+
+      - name: Mount host filesystem read/write
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/raw_module.html
+        raw: rw
+        changed_when: False
+        register: result
+        failed_when:
+        - result.rc != 0
+
+      - name: Remove user from sudoers file
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/lineinfile_module.html
+        ansible.builtin.lineinfile:
+          path: /etc/sudoers
+          regexp: '^[# ]*{{ user_username }}'
+          validate: /usr/sbin/visudo -cf %s
+          state: absent
+
+      - name: Remove provisioning user
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/user_module.html
+        ansible.builtin.user:
+          name: "{{ user_username }}"
+          remove: yes
+          state: absent
+
+      - name: Configure SSHD
+        block:
+
+        - name: Ensure public key based logins are allowed.
+          # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/lineinfile_module.html
+          lineinfile:
+            dest: /etc/ssh/sshd_config
+            regexp: '^[# ]*PubkeyAuthentication'
+            line: "PubkeyAuthentication yes"
+            backup: yes
+            state: absent
+          notify: "Restart SSHD"
+
+      - name: Mount host filesystem read-only
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/raw_module.html
+        raw: ro
+        changed_when: False
+        register: result
+        failed_when:
+        - result.rc != 0
+
+  handlers:
+    - name: Restart SSHD
+      # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/service_module.html
+      ansible.builtin.service:
+        name: sshd
+        state: restarted

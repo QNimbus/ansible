@@ -1,0 +1,11 @@
+[control]
+localhost ansible_connection=local
+
+[pikvm]
+pikvm.iot.besqua.red ssh_user=ansible
+
+[pikvm:vars]
+ansible_remote_tmp = /tmp
+ansible_async_dir = /tmp/.ansible_async
+ansible_python_interpreter = auto_silent
+ansible_ssh_private_key_file = ~/.ssh/id_rsa_ansible
