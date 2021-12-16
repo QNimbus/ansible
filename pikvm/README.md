@@ -30,5 +30,7 @@ $ ansible-playbook plays/setup-revert.yaml --ask-pass
 
 ## References
 
-(PiKVM Handbook)[https://docs.pikvm.org/#links]
+[PiKVM Handbook]
+
+[PiKVM Handbook]:https://docs.pikvm.org/#links
 
