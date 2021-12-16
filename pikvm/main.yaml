@@ -1,2 +1,2 @@
 ---
-- import_playbook: ssh.yaml
+- import_playbook: plays/ssh.yaml

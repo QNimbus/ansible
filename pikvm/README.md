@@ -18,14 +18,14 @@ Initially the host keys for the host(s) are not yet in the `~/.ssh/known_hosts` 
 
 ```bash
 # Initial setup - stores host keys in ~/.ssh/known_hosts file
-$ ansible-playbook setup.yaml -ask-pass --ssh-extra-args="-o StrictHostKeyChecking=no -o UpdateHostKeys=yes"
+$ ansible-playbook plays/setup.yaml -ask-pass --ssh-extra-args="-o StrictHostKeyChecking=no -o UpdateHostKeys=yes"
 
 # Or to manually fetch host keys:
 $ scripts/get_host_keys.sh pikvm.lan.besqua.red > ~/.ssh/known_hosts
-$ ansible-playbook setup.yaml --ask-pass
+$ ansible-playbook plays/setup.yaml --ask-pass
 
 # To revert the changes made by the setup.yaml playbook:
-$ ansible-playbook setup-revert.yaml --ask-pass
+$ ansible-playbook plays/setup-revert.yaml --ask-pass
 ```
 
 ## References
