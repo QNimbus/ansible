@@ -1,3 +1,0 @@
-[submodule "pikvm/roles/diodonfrost.ssh_hardening"]
-	path = pikvm/roles/diodonfrost.ssh_hardening
-	url = git@github.com:QNimbus/ansible-role-ssh-hardening.git
