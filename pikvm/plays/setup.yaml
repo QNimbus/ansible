@@ -2,7 +2,7 @@
 - name: Initial setup
   hosts: pikvm
   user: root
-  become: no
+  become: yes
   gather_facts: no
 
   # Playbook: setup.yaml
@@ -42,6 +42,31 @@
       when: ansible_distribution == 'Archlinux'
       block:
 
+      - name: Mount host filesystem read/write
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/raw_module.html
+        raw: rw
+        changed_when: False
+        register: result
+        failed_when:
+        - result.rc != 0
+
+      - name: Initialize package manager
+        block:
+
+        - name: Run "pacman -Syu"
+          # See: https://docs.ansible.com/ansible/latest/collections/community/general/pacman_module.html
+          community.general.pacman:
+            update_cache: yes
+            upgrade: yes
+
+      - name: Network settings
+        block:
+
+        - name: Ensure hostname is set to '{{inventory_hostname}}'
+          # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/hostname_module.html
+          ansible.builtin.hostname:
+            name: "{{ inventory_hostname }}"
+
       - name: Generate SSH key
         # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/shell_module.html
         shell: /bin/bash -c 'ssh-keygen -q -t rsa -b 4096 -C "{{ user_username }}" -N "" -f {{ ssh_keyfile }} <<< n'
@@ -50,14 +75,6 @@
         failed_when: result.rc not in [0, 1]
         changed_when: result.rc == 0
         register: result
-
-      - name: Mount host filesystem read/write
-        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/raw_module.html
-        raw: rw
-        changed_when: False
-        register: result
-        failed_when:
-        - result.rc != 0
 
       - name: Create provisioning user
         # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/user_module.html
