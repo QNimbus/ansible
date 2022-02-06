@@ -4,6 +4,12 @@
   become: yes
   gather_facts: yes
 
+  # Playbook: ssh.yaml
+  #
+  # This playbook ensures the following:
+  # - Secure and sensible configuration for ssh server
+  # - Ensure that sftp uses the internal sftp server
+
   vars:
     # Enable hardening sshd
     sshd_hardening: true
@@ -106,7 +112,6 @@
         regexp: '^[# ]*Subsystem sftp'
         line: "Subsystem sftp internal-sftp"
         state: present
-      notify: "Restart SSHD"
 
     - name: Mount host filesystem read-only
       # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/raw_module.html
@@ -115,10 +120,3 @@
       register: result
       failed_when:
       - result.rc != 0
-
-  handlers:
-    - name: Restart SSHD
-      # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/service_module.html
-      ansible.builtin.service:
-        name: sshd
-        state: restarted
