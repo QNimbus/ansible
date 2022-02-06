@@ -2,7 +2,7 @@
 localhost ansible_connection=local
 
 [pikvm]
-pikvm.iot.besqua.red
+pikvm.lan.besqua.red
 
 [pikvm:vars]
 ansible_remote_tmp = /tmp
