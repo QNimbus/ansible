@@ -1,0 +1,106 @@
+---
+- name: SSH config
+  hosts: dramble
+  become: yes
+  gather_facts: yes
+
+  # Playbook: ssh.yaml
+  #
+  # This playbook ensures the following:
+  # - Secure and sensible configuration for ssh server
+  # - Ensure that sftp uses the internal sftp server
+
+  vars:
+    # Enable hardening sshd
+    sshd_hardening: true
+
+    # Enable hardening ssh
+    ssh_hardening: true
+
+    # Enable public keys transfer
+    openssh_keys: true
+
+    # Transfert ssh public on the target host
+    public_keys: []
+    # - key1
+    # - key2
+    # - key3
+
+    ### OPENSSH-SERVER ###
+
+    # Define listening sshd port
+    sshd_port: "22"
+
+    # Use only ssh protocol version 2
+    sshd_protocol_version: "2"
+
+    # Listening on specific address
+    sshd_listening_address:
+      - 0.0.0.0
+
+    # Check host key when sshd start
+    sshd_host_key_files: []
+
+    # Deny root login
+    sshd_root_login: "no"
+
+    # Disable kerberos
+    sshd_kerberos_support: false
+
+    # Disable gssapi authentification
+    sshd_gssapi_support: false
+
+    # Disable x11 forwarding
+    sshd_x11_forwarding: "yes"
+
+    # Disable agent forwarding
+    sshd_agent_forwarding: "yes"
+
+    # Disable tcp forwarding
+    sshd_tcp_forwarding: "yes"
+
+    # Disconnect idle sessions
+    sshd_client_alive_intervale: "300"
+    sshd_client_alive_countMax: "2"
+
+    # Set banner
+    sshd_banner: "/etc/issue.net"
+
+    # Use pam authentification
+    sshd_pam: "yes"
+
+    # Use privilege separation
+    sshd_privilege_separation_59: "sandbox"
+    sshd_privilege_separation_53: "yes"
+
+    # Password authentification should be disabled
+    sshd_password_authentification: "no"
+
+    # Limit max connexion non-authentified concurency and max try
+    sshd_max_auth_tries: "5"
+    sshd_max_startups: "10:30:100"
+
+    ### OPENSSH-CLIENT ###
+
+    # Definie default ssh port
+    ssh_port: "22"
+
+    # Disable roaming
+    ssh_roaming: "no"
+
+    # Disallow password authentication
+    ssh_password_authentification: "no"
+
+  tasks:
+
+    - name: Include the ssh_hardening role
+      include_role:
+        name: diodonfrost.ssh_hardening
+
+    - name: Ensure internal sftp-server is used
+      # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/lineinfile_module.html
+      lineinfile:
+        dest: /etc/ssh/sshd_config
+        regexp: '^[# ]*Subsystem sftp'
+        line: "Subsystem sftp internal-sftp"
+        state: present

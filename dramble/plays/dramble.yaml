@@ -1,0 +1,164 @@
+---
+- name: Create dramble user
+  hosts: dramble
+  user: ansible
+  become: yes
+  gather_facts: yes
+
+  # Playbook: pikvm.yaml
+  #
+  # This playbook ensures the following:
+  # - 'sudo' group exists
+  # - 'sudo' group members can use sudo
+  # - dramble user exists and belongs to 'sudo' group
+  # - dramble user ssh public key is added to authorized keys
+  # - ssh authorized key login is enabled
+  # - root user account is disabled
+
+  vars:
+
+  vars_prompt:
+    - name: user
+      prompt: "Enter username"
+      default: "dramble"
+    - name: password
+      prompt: "Enter password"
+      private: yes
+      default: "dramble"
+    - name: ssh_key_file
+      prompt: "Enter ssh keyfile"
+      private: no
+      default: "~/.ssh/id_rsa_dramble"
+
+  tasks:
+
+    - name: Ensure group 'sudo' exists
+      # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/group_module.html
+      ansible.builtin.group:
+        name: sudo
+        state: present
+
+    - name: Ensure sudo group has sudo privileges
+      # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/lineinfile_module.html
+      ansible.builtin.lineinfile:
+        path: /etc/sudoers
+        regexp: '^[# ]*sudo ALL=\(ALL\) ALL'
+        line: '%sudo ALL=(ALL) ALL'
+        validate: /usr/sbin/visudo -cf %s
+        state: present
+
+    - name: Create user
+      block:  
+
+      - name: Ensure pikvm user exists
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/user_module.html
+        ansible.builtin.user:
+          name: "{{ user }}"
+          password: "{{ password | password_hash('sha512') }}"
+          update_password: on_create
+          groups: sudo
+          shell: /bin/bash
+          state: present
+
+      - name: Check if '{{ssh_key_file}}' exists
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/stat_module.html
+        ansible.builtin.stat:
+          path: "{{ssh_key_file}}"
+        delegate_to: localhost
+        become: no
+        register: stat_result
+
+      - name: Install authorized key for provisioning user from file
+        block:
+
+        - name: Install authorized key for provisioning user
+          # See: https://docs.ansible.com/ansible/latest/collections/ansible/posix/authorized_key_module.html
+          ansible.posix.authorized_key:
+              key: "{{ lookup('file', '{{ ssh_key_file }}.pub') }}"
+              user: "{{ user }}"
+              state: present
+
+        when: stat_result.stat.exists
+
+    - name: Configure SSHD
+      block:
+
+      - name: Ensure public key based logins are allowed.
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/lineinfile_module.html
+        lineinfile:
+          dest: /etc/ssh/sshd_config
+          regexp: '^[# ]*PubkeyAuthentication'
+          line: "PubkeyAuthentication yes"
+          state: present
+        notify: "Restart SSHD"
+
+    - name: Disable root user
+      block:  
+
+      - name: Ensure root user account is disabled
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/user_module.html
+        ansible.builtin.user:
+          name: root
+          password: "*"
+          password_lock: yes
+          state: present
+
+    - name: Enable PiKVM HAT OLED display & fan
+      block:
+
+      - name: Ensure kvmd-oled is enabled and started
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/service_module.html
+        ansible.builtin.service:
+          name: kvmd-oled
+          state: started
+          enabled: yes
+
+      - name: Ensure kvmd-oled-reboot is enabled and started
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/service_module.html
+        ansible.builtin.service:
+          name: kvmd-oled-reboot
+          enabled: yes
+
+      - name: Ensure kvmd-oled-shutdown is enabled and started
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/service_module.html
+        ansible.builtin.service:
+          name: kvmd-oled-shutdown
+          enabled: yes
+
+      - name: Ensure kvmd-fan is enabled and started
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/service_module.html
+        ansible.builtin.service:
+          name: kvmd-fan
+          state: started
+          enabled: yes
+
+    - name: Configure mDNS
+      block:
+
+      - name: Ensure avahi-daemon is installed
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/package_module.html
+        ansible.builtin.package:
+          name: avahi
+          state: present
+
+      - name: Ensure avahi-daemon is enabled and started
+        # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/service_module.html
+        ansible.builtin.service:
+          name: avahi-daemon
+          state: started
+          enabled: yes
+
+    - name: Mount host filesystem read-only
+      # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/raw_module.html
+      raw: ro
+      changed_when: False
+      register: result
+      failed_when:
+      - result.rc != 0
+
+  handlers:
+    - name: Restart SSHD
+      # See: https://docs.ansible.com/ansible/latest/collections/ansible/builtin/service_module.html
+      ansible.builtin.service:
+        name: sshd
+        state: restarted

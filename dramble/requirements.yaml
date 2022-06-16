@@ -1,0 +1,4 @@
+---
+  # ./dramble/roles
+  - src: diodonfrost.ssh_hardening
+    version: 1.1.0

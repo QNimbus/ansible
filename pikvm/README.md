@@ -88,4 +88,3 @@ $ ansible-playbook plays/pikvm.yaml -e user=pikvm -e password=pikvm -e ssh_key_f
 [PiKVM Handbook]
 
 [PiKVM Handbook]:https://docs.pikvm.org/#links
-
